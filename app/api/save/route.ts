@@ -38,7 +38,12 @@ export async function POST(request: NextRequest) {
     }
 
     const key = getFilename(sitemapUrl);
+    
+    console.log(`[SAVE] Attempting to save key: ${key}`);
+    console.log(`[SAVE] Redis URL configured: ${process.env.REDIS_URL ? 'Yes' : 'No'}`);
+    
     const client = await getRedisClient();
+    console.log(`[SAVE] Redis client connected: ${client.isOpen ? 'Yes' : 'No'}`);
 
     // Include sitemapUrl in the results before saving
     const resultsWithSitemapUrl = {
@@ -47,13 +52,23 @@ export async function POST(request: NextRequest) {
     };
 
     // Store the results as JSON string
+    console.log(`[SAVE] Saving data for key: ${key}`);
     await client.set(key, JSON.stringify(resultsWithSitemapUrl));
+    console.log(`[SAVE] Successfully saved key: ${key}`);
 
     return NextResponse.json({ success: true, key });
   } catch (error: any) {
-    console.error('Error saving to Redis:', error);
+    console.error('[SAVE] Error saving to Redis:', error);
+    console.error('[SAVE] Error details:', {
+      message: error.message,
+      stack: error.stack,
+      redisUrl: process.env.REDIS_URL ? 'Set' : 'Not set',
+    });
     return NextResponse.json(
-      { error: `Failed to save to Redis: ${error.message || 'Unknown error'}` },
+      { 
+        error: `Failed to save to Redis: ${error.message || 'Unknown error'}`,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
