@@ -1,0 +1,3 @@
+1. add a button on the UI and enable it after successful analysis and persist result into local redis server use the input file name as key and the generated list as value
+2. do not try to show all urls result,make it paged like 100 urls per page and I should be able to change the size of page between 50/200/500/1000).
+3. allow me to retrieve history result from redis by showing all existing records as a dropdown

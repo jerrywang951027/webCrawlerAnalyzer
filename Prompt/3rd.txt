@@ -1,0 +1,2 @@
+for each url found from sitemap, try to retrieve the content and then get all the internal links
+from the page and then recursively retrieve more internal links from such returned html until no more links
