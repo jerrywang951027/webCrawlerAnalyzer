@@ -42,7 +42,10 @@ export default function Home() {
   const [selectedHistoryKey, setSelectedHistoryKey] = useState('');
   const [crawlHtmlLinks, setCrawlHtmlLinks] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [activeTab, setActiveTab] = useState<'analyze' | 'load'>('analyze');
+  const [activeTab, setActiveTab] = useState<'analyze' | 'load' | 'sitemaps'>('analyze');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [isLoadingSitemaps, setIsLoadingSitemaps] = useState(false);
+  const [foundSitemaps, setFoundSitemaps] = useState<string[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [savedResultsSummary, setSavedResultsSummary] = useState<Array<{
     name: string;
@@ -249,6 +252,47 @@ export default function Home() {
       alert(`Error loading: ${error.message}`);
     } finally {
       setIsLoadingHistory(false);
+    }
+  };
+
+  const handleFetchSitemaps = async () => {
+    if (!isValidUrl(websiteUrl)) {
+      alert('Please enter a valid URL');
+      return;
+    }
+
+    setIsLoadingSitemaps(true);
+    setFoundSitemaps([]);
+    
+    try {
+      // Normalize URL - ensure it has protocol
+      let normalizedUrl = websiteUrl.trim();
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = 'https://' + normalizedUrl;
+      }
+      
+      // Remove trailing slash and append /robots.txt
+      const robotsUrl = normalizedUrl.replace(/\/$/, '') + '/robots.txt';
+      
+      const response = await fetch('/api/robots', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: robotsUrl }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch robots.txt');
+      }
+
+      const data = await response.json();
+      setFoundSitemaps(data.sitemaps || []);
+    } catch (error: any) {
+      alert(`Error fetching sitemaps: ${error.message}`);
+    } finally {
+      setIsLoadingSitemaps(false);
     }
   };
 
@@ -666,23 +710,23 @@ export default function Home() {
                 </colgroup>
                 <thead>
                   <tr className={darkMode ? 'bg-gray-700' : 'bg-gray-100'}>
-                    <th className={`border px-4 py-3 text-left font-bold text-black ${
-                      darkMode ? 'border-gray-600' : 'border-gray-300'
+                    <th className={`border px-4 py-3 text-left font-bold ${
+                      darkMode ? 'text-white border-gray-600' : 'text-black border-gray-300'
                     }`}>
                       Saved Name
                     </th>
-                    <th className={`border px-4 py-3 text-left font-bold text-black ${
-                      darkMode ? 'border-gray-600' : 'border-gray-300'
+                    <th className={`border px-4 py-3 text-left font-bold ${
+                      darkMode ? 'text-white border-gray-600' : 'text-black border-gray-300'
                     }`}>
                       Sitemap URL
                     </th>
-                    <th className={`border px-4 py-3 text-left font-bold text-black ${
-                      darkMode ? 'border-gray-600' : 'border-gray-300'
+                    <th className={`border px-4 py-3 text-left font-bold ${
+                      darkMode ? 'text-white border-gray-600' : 'text-black border-gray-300'
                     }`}>
                       Total URLs
                     </th>
-                    <th className={`border px-4 py-3 text-left font-bold text-black ${
-                      darkMode ? 'border-gray-600' : 'border-gray-300'
+                    <th className={`border px-4 py-3 text-left font-bold ${
+                      darkMode ? 'text-white border-gray-600' : 'text-black border-gray-300'
                     }`}>
                       Sub Sitemaps
                     </th>
@@ -833,10 +877,10 @@ export default function Home() {
                     <thead>
                       <tr className={darkMode ? 'bg-gray-700' : 'bg-gray-100'}>
                         <th
-                          className={`border px-4 py-3 text-left cursor-pointer font-bold text-black transition-colors ${
+                          className={`border px-4 py-3 text-left cursor-pointer font-bold transition-colors ${
                             darkMode
-                              ? 'border-gray-600 hover:bg-gray-600'
-                              : 'border-gray-300 hover:bg-gray-200'
+                              ? 'text-white border-gray-600 hover:bg-gray-600'
+                              : 'text-black border-gray-300 hover:bg-gray-200'
                           }`}
                           onClick={() => handleSort('url')}
                         >
@@ -848,10 +892,10 @@ export default function Home() {
                           )}
                         </th>
                         <th
-                          className={`border px-4 py-3 text-left cursor-pointer font-bold text-black transition-colors ${
+                          className={`border px-4 py-3 text-left cursor-pointer font-bold transition-colors ${
                             darkMode
-                              ? 'border-gray-600 hover:bg-gray-600'
-                              : 'border-gray-300 hover:bg-gray-200'
+                              ? 'text-white border-gray-600 hover:bg-gray-600'
+                              : 'text-black border-gray-300 hover:bg-gray-200'
                           }`}
                           onClick={() => handleSort('source')}
                         >
