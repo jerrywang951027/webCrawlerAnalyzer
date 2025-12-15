@@ -952,11 +952,21 @@ export default function Home() {
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse table-fixed">
                     <colgroup>
+                      <col className="w-16" />
                       <col className="w-3/5" />
                       <col className="w-2/5" />
                     </colgroup>
                     <thead>
                       <tr className={darkMode ? 'bg-gray-700' : 'bg-gray-100'}>
+                        <th
+                          className={`border px-4 py-3 text-center font-bold transition-colors ${
+                            darkMode
+                              ? 'text-white border-gray-600'
+                              : 'text-black border-gray-300'
+                          }`}
+                        >
+                          #
+                        </th>
                         <th
                           className={`border px-4 py-3 text-left cursor-pointer font-bold transition-colors ${
                             darkMode
@@ -990,34 +1000,45 @@ export default function Home() {
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedUrls.map((entry, index) => (
-                        <tr
-                          key={index}
-                          className={`transition-colors ${
-                            darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-                          }`}
-                        >
-                          <td className={`border px-4 py-2 break-words overflow-wrap-anywhere word-break-break-all ${
-                            darkMode ? 'border-gray-600' : 'border-gray-300'
-                          }`}>
-                            <a
-                              href={entry.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`${darkMode ? 'text-blue-400 hover:underline' : 'text-blue-600 hover:underline'} break-all`}
-                            >
-                              {entry.url}
-                            </a>
-                          </td>
-                          <td className={`border px-4 py-2 break-words font-mono text-sm overflow-wrap-anywhere word-break-break-all ${
-                            darkMode
-                              ? 'border-gray-600 text-gray-300'
-                              : 'border-gray-300 text-gray-800'
-                          }`}>
-                            {entry.source}
-                          </td>
-                        </tr>
-                      ))}
+                      {paginatedUrls.map((entry, index) => {
+                        // Calculate the row number starting from 1 for the current page
+                        const rowNumber = (currentPage - 1) * pageSize + index + 1;
+                        return (
+                          <tr
+                            key={index}
+                            className={`transition-colors ${
+                              darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <td className={`border px-4 py-2 text-center ${
+                              darkMode
+                                ? 'border-gray-600 text-gray-300'
+                                : 'border-gray-300 text-gray-800'
+                            }`}>
+                              {rowNumber}
+                            </td>
+                            <td className={`border px-4 py-2 break-words overflow-wrap-anywhere word-break-break-all ${
+                              darkMode ? 'border-gray-600' : 'border-gray-300'
+                            }`}>
+                              <a
+                                href={entry.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`${darkMode ? 'text-blue-400 hover:underline' : 'text-blue-600 hover:underline'} break-all`}
+                              >
+                                {entry.url}
+                              </a>
+                            </td>
+                            <td className={`border px-4 py-2 break-words font-mono text-sm overflow-wrap-anywhere word-break-break-all ${
+                              darkMode
+                                ? 'border-gray-600 text-gray-300'
+                                : 'border-gray-300 text-gray-800'
+                            }`}>
+                              {entry.source}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
