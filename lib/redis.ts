@@ -6,33 +6,64 @@ function createRedisClient() {
   // Use REDIS_URL if available (Heroku), otherwise use host/port
   if (process.env.REDIS_URL) {
     console.log('Redis: Using REDIS_URL for connection');
-    const isTLS = process.env.REDIS_URL.startsWith('rediss://');
+    const redisUrl = process.env.REDIS_URL;
+    const isTLS = redisUrl.startsWith('rediss://');
     
-    // When using URL, TLS is automatically handled by the URL scheme (rediss://)
-    // We configure TLS options at the top level, not in socket, to avoid conflicts
-    const clientOptions: any = {
-      url: process.env.REDIS_URL,
-      socket: {
-        reconnectStrategy: (retries: number) => {
-          if (retries > 10) {
-            console.error('Redis: Too many reconnection attempts');
-            return new Error('Too many reconnection attempts');
-          }
-          return Math.min(retries * 100, 3000);
-        },
-      },
-    };
-    
-    // For rediss:// URLs, configure TLS at the top level to handle certificate chain issues
+    // For rediss:// URLs, parse and use discrete parameters to avoid TLS configuration conflicts
     if (isTLS) {
-      // Set TLS options at the top level, not in socket
-      clientOptions.tls = {
-        // For Heroku Redis, disable certificate validation to handle self-signed cert chain issues
-        rejectUnauthorized: false,
-      };
+      try {
+        const url = new URL(redisUrl);
+        const password = url.password || (url.username ? decodeURIComponent(url.username) : undefined);
+        
+        console.log('Redis: Parsing rediss:// URL to use discrete parameters');
+        return createClient({
+          socket: {
+            host: url.hostname,
+            port: parseInt(url.port) || 6380,
+            tls: {
+              rejectUnauthorized: false, // Handle self-signed certificate chain issues
+            },
+            reconnectStrategy: (retries: number) => {
+              if (retries > 10) {
+                console.error('Redis: Too many reconnection attempts');
+                return new Error('Too many reconnection attempts');
+              }
+              return Math.min(retries * 100, 3000);
+            },
+          },
+          password: password,
+        });
+      } catch (error) {
+        console.error('Redis: Error parsing URL, falling back to URL string:', error);
+        // Fallback to URL if parsing fails
+        return createClient({
+          url: redisUrl,
+          socket: {
+            reconnectStrategy: (retries: number) => {
+              if (retries > 10) {
+                console.error('Redis: Too many reconnection attempts');
+                return new Error('Too many reconnection attempts');
+              }
+              return Math.min(retries * 100, 3000);
+            },
+          },
+        });
+      }
+    } else {
+      // For redis:// URLs, use URL directly
+      return createClient({
+        url: redisUrl,
+        socket: {
+          reconnectStrategy: (retries: number) => {
+            if (retries > 10) {
+              console.error('Redis: Too many reconnection attempts');
+              return new Error('Too many reconnection attempts');
+            }
+            return Math.min(retries * 100, 3000);
+          },
+        },
+      });
     }
-    
-    return createClient(clientOptions);
   } else {
     console.log('Redis: Using host/port for connection');
     return createClient({
