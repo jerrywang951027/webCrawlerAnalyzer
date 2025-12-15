@@ -13,15 +13,28 @@ function createRedisClient() {
     if (isTLS) {
       try {
         const url = new URL(redisUrl);
-        const password = url.password || (url.username ? decodeURIComponent(url.username) : undefined);
+        // Heroku Redis URLs format: rediss://:password@host:port
+        // Password is in url.password, or if empty, might be in url.username
+        let password = url.password;
+        if (!password && url.username) {
+          // Sometimes password is encoded in username field
+          password = decodeURIComponent(url.username);
+        }
+        // Remove leading colon if present (rediss://:password@host)
+        if (password && password.startsWith(':')) {
+          password = password.substring(1);
+        }
         
-        console.log('Redis: Parsing rediss:// URL to use discrete parameters');
-        // For node-redis v5, we need to configure TLS options in socket.tls
-        // Use type assertion to bypass TypeScript strict typing
+        const host = url.hostname;
+        const port = parseInt(url.port) || 6380;
+        
+        console.log(`Redis: Parsing rediss:// URL - host: ${host}, port: ${port}, password: ${password ? '***' : 'none'}`);
+        
+        // For node-redis v5, use socket.tls as object with type assertion
         return createClient({
           socket: {
-            host: url.hostname,
-            port: parseInt(url.port) || 6380,
+            host: host,
+            port: port,
             tls: {
               rejectUnauthorized: false, // Handle self-signed certificate chain issues
             } as any, // Type assertion - socket.tls can be object despite types saying boolean
@@ -33,7 +46,7 @@ function createRedisClient() {
               return Math.min(retries * 100, 3000);
             },
           } as any,
-          password: password,
+          password: password || undefined,
         });
       } catch (error) {
         console.error('Redis: Error parsing URL, falling back to URL string:', error);
