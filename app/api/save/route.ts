@@ -51,12 +51,51 @@ export async function POST(request: NextRequest) {
       sitemapUrl: sitemapUrl,
     };
 
+    // Convert to JSON string and calculate size
+    const jsonString = JSON.stringify(resultsWithSitemapUrl);
+    const dataSizeBytes = Buffer.byteLength(jsonString, 'utf8');
+    const dataSizeMB = dataSizeBytes / (1024 * 1024);
+    const dataSizeKB = dataSizeBytes / 1024;
+    
+    console.log(`[SAVE] Data size: ${dataSizeBytes} bytes (${dataSizeKB.toFixed(2)} KB, ${dataSizeMB.toFixed(2)} MB)`);
+    console.log(`[SAVE] Number of URLs: ${results.urls?.length || 0}`);
+    
+    // Check if data exceeds 25MB limit
+    const MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+    if (dataSizeBytes > MAX_SIZE_BYTES) {
+      const errorMsg = `Data size (${dataSizeMB.toFixed(2)} MB) exceeds Redis limit (25 MB). Please reduce the number of URLs or split the data.`;
+      console.error(`[SAVE] ERROR: ${errorMsg}`);
+      return NextResponse.json(
+        { 
+          error: errorMsg,
+          dataSize: {
+            bytes: dataSizeBytes,
+            kb: dataSizeKB,
+            mb: dataSizeMB,
+            limitMB: 25
+          },
+          urlCount: results.urls?.length || 0
+        },
+        { status: 413 } // 413 Payload Too Large
+      );
+    }
+
     // Store the results as JSON string
-    console.log(`[SAVE] Saving data for key: ${key}`);
-    await client.set(key, JSON.stringify(resultsWithSitemapUrl));
+    console.log(`[SAVE] Saving data for key: ${key} (${dataSizeMB.toFixed(2)} MB)`);
+    await client.set(key, jsonString);
     console.log(`[SAVE] Successfully saved key: ${key}`);
 
-    return NextResponse.json({ success: true, key });
+    return NextResponse.json({ 
+      success: true, 
+      key,
+      dataSize: {
+        bytes: dataSizeBytes,
+        kb: dataSizeKB,
+        mb: dataSizeMB,
+        limitMB: 25
+      },
+      urlCount: results.urls?.length || 0
+    });
   } catch (error: any) {
     console.error('[SAVE] Error saving to Redis:', error);
     console.error('[SAVE] Error details:', {

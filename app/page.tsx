@@ -147,13 +147,29 @@ export default function Home() {
         body: JSON.stringify({ sitemapUrl, results }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save');
+        // Handle size limit error with detailed message
+        if (response.status === 413 && data.dataSize) {
+          const sizeInfo = data.dataSize;
+          const errorMsg = `${data.error}\n\nSize Details:\n- Current size: ${sizeInfo.mb.toFixed(2)} MB\n- Limit: ${sizeInfo.limitMB} MB\n- URLs: ${data.urlCount || 0}\n\nPlease reduce the number of URLs or split the data.`;
+          alert(errorMsg);
+        } else {
+          throw new Error(data.error || 'Failed to save');
+        }
+        return;
       }
 
       await fetchHistoryKeys(); // Refresh history after save
-      alert('Results saved successfully!');
+      
+      // Show success message with size information
+      if (data.dataSize) {
+        const sizeInfo = data.dataSize;
+        alert(`Results saved successfully!\n\nSize: ${sizeInfo.mb.toFixed(2)} MB (${sizeInfo.kb.toFixed(2)} KB)\nURLs: ${data.urlCount || 0}`);
+      } else {
+        alert('Results saved successfully!');
+      }
     } catch (error: any) {
       alert(`Error saving: ${error.message}`);
     } finally {
