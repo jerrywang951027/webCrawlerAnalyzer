@@ -16,13 +16,12 @@ function createRedisClient() {
         const password = url.password || (url.username ? decodeURIComponent(url.username) : undefined);
         
         console.log('Redis: Parsing rediss:// URL to use discrete parameters');
+        // For node-redis v5, socket.tls should be boolean, TLS options go at top level
         return createClient({
           socket: {
             host: url.hostname,
             port: parseInt(url.port) || 6380,
-            tls: {
-              rejectUnauthorized: false, // Handle self-signed certificate chain issues
-            },
+            tls: true, // Enable TLS
             reconnectStrategy: (retries: number) => {
               if (retries > 10) {
                 console.error('Redis: Too many reconnection attempts');
@@ -32,6 +31,10 @@ function createRedisClient() {
             },
           },
           password: password,
+          // TLS options at top level for node-redis v5
+          tls: {
+            rejectUnauthorized: false, // Handle self-signed certificate chain issues
+          } as any, // Type assertion to bypass strict typing
         });
       } catch (error) {
         console.error('Redis: Error parsing URL, falling back to URL string:', error);
