@@ -50,6 +50,13 @@ export default function Home() {
     totalUrls: number;
     totalSubSitemaps: number;
   }>>([]);
+  const [redisMemory, setRedisMemory] = useState<{
+    usedMB: number;
+    maxMB: number;
+    availableMB: number;
+    isHeroku: boolean;
+    hasLimit: boolean;
+  } | null>(null);
 
   // Load dark mode preference from localStorage
   useEffect(() => {
@@ -71,6 +78,25 @@ export default function Home() {
   useEffect(() => {
     fetchHistoryKeys();
   }, []);
+
+  // Fetch Redis memory info when Load Saved Result tab is active
+  useEffect(() => {
+    if (activeTab === 'load') {
+      fetchRedisMemory();
+    }
+  }, [activeTab]);
+
+  const fetchRedisMemory = async () => {
+    try {
+      const response = await fetch('/api/memory');
+      if (response.ok) {
+        const data = await response.json();
+        setRedisMemory(data);
+      }
+    } catch (error) {
+      console.error('Error fetching Redis memory info:', error);
+    }
+  };
 
   const fetchHistoryKeys = async () => {
     try {
@@ -505,6 +531,55 @@ export default function Home() {
 
             {activeTab === 'load' && (
               <div>
+                {/* Redis Memory Usage Display */}
+                {redisMemory && (
+                  <div className={`mb-4 p-4 rounded-lg border ${
+                    darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-300'
+                  }`}>
+                    <div className={`text-sm font-medium ${
+                      darkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Redis Memory Usage:{' '}
+                      <span className={`font-semibold ${
+                        darkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        {redisMemory.usedMB.toFixed(1)}M
+                        {redisMemory.hasLimit ? (
+                          `/${redisMemory.maxMB.toFixed(0)}M`
+                        ) : (
+                          '/∞'
+                        )}
+                        {' '}(Redis)
+                      </span>
+                    </div>
+                    {redisMemory.hasLimit && (
+                      <div className="mt-2">
+                        <div className={`w-full h-2 rounded-full overflow-hidden ${
+                          darkMode ? 'bg-gray-600' : 'bg-gray-200'
+                        }`}>
+                          <div
+                            className={`h-full transition-all ${
+                              redisMemory.usedMB / redisMemory.maxMB > 0.9
+                                ? 'bg-red-500'
+                                : redisMemory.usedMB / redisMemory.maxMB > 0.7
+                                ? 'bg-yellow-500'
+                                : 'bg-green-500'
+                            }`}
+                            style={{
+                              width: `${Math.min((redisMemory.usedMB / redisMemory.maxMB) * 100, 100)}%`
+                            }}
+                          />
+                        </div>
+                        <div className={`text-xs mt-1 ${
+                          darkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          {redisMemory.availableMB.toFixed(1)}M available
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 <div className="mb-4">
                   <label className={`block text-sm font-medium mb-2 ${
                     darkMode ? 'text-gray-300' : 'text-gray-700'
