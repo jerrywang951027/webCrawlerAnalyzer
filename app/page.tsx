@@ -31,7 +31,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<CrawlResult | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof UrlEntry | null; direction: 'asc' | 'desc' }>({
-    key: null,
+    key: 'url',
     direction: 'asc',
   });
   const [filterText, setFilterText] = useState('');
@@ -403,20 +403,15 @@ export default function Home() {
   };
 
   const getSortedUrls = (): UrlEntry[] => {
-    if (!results || !sortConfig.key || !results.urls) {
-      return results?.urls || [];
+    if (!results || !results.urls) {
+      return [];
     }
 
+    // Always sort alphabetically by URL first
     const sorted = [...results.urls].sort((a, b) => {
-      const aValue = a[sortConfig.key!];
-      const bValue = b[sortConfig.key!];
-
-      if (aValue < bValue) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
-      }
+      // Primary sort: always alphabetical by URL
+      if (a.url < b.url) return -1;
+      if (a.url > b.url) return 1;
       return 0;
     });
 
