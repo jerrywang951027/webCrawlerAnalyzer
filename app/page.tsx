@@ -519,6 +519,20 @@ export default function Home() {
             >
               Load Saved Result
             </button>
+            <button
+              onClick={() => setActiveTab('sitemaps')}
+              className={`flex-1 px-6 py-4 font-semibold transition-colors ${
+                activeTab === 'sitemaps'
+                  ? darkMode
+                    ? 'bg-gray-700 text-white border-b-2 border-blue-500'
+                    : 'bg-gray-100 text-gray-800 border-b-2 border-blue-500'
+                  : darkMode
+                    ? 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+              }`}
+            >
+              Get all sitemaps
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -682,6 +696,73 @@ export default function Home() {
                         : 'bg-white border-gray-300 text-gray-800'
                     }`}>
                       {results.sitemapUrl}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === 'sitemaps' && (
+              <div>
+                <div className="mb-4">
+                  <label className={`block text-sm font-medium mb-2 ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Enter website URL to fetch robots.txt:
+                  </label>
+                  <div className="flex gap-4">
+                    <input
+                      type="text"
+                      value={websiteUrl}
+                      onChange={(e) => setWebsiteUrl(e.target.value)}
+                      placeholder="https://docs.nvidia.com"
+                      className={`flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        darkMode
+                          ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400'
+                          : 'border-gray-300 text-black'
+                      }`}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && isValidUrl(websiteUrl) && !isLoadingSitemaps) {
+                          handleFetchSitemaps();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={handleFetchSitemaps}
+                      disabled={!isValidUrl(websiteUrl) || isLoadingSitemaps}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isLoadingSitemaps ? 'Fetching...' : 'Fetch Sitemaps'}
+                    </button>
+                  </div>
+                </div>
+                
+                {foundSitemaps.length > 0 && (
+                  <div className={`rounded-lg shadow-lg p-6 ${
+                    darkMode ? 'bg-gray-800' : 'bg-white'
+                  }`}>
+                    <h2 className={`text-2xl font-semibold mb-4 ${
+                      darkMode ? 'text-white' : 'text-gray-800'
+                    }`}>
+                      Found Sitemaps ({foundSitemaps.length})
+                    </h2>
+                    <div className={`rounded-lg p-4 max-h-96 overflow-y-auto font-mono text-sm whitespace-pre-wrap ${
+                      darkMode ? 'bg-gray-900 text-gray-300' : 'bg-gray-50 text-gray-800'
+                    }`}>
+                      {foundSitemaps.map((sitemap, index) => (
+                        <div key={index} className="mb-2">
+                          <span className="text-blue-500">Sitemap:</span>{' '}
+                          <a
+                            href={sitemap}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`hover:underline ${
+                              darkMode ? 'text-blue-400' : 'text-blue-600'
+                            }`}
+                          >
+                            {sitemap}
+                          </a>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
