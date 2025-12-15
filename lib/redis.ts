@@ -6,10 +6,10 @@ function createRedisClient() {
   // Use REDIS_URL if available (Heroku), otherwise use host/port
   if (process.env.REDIS_URL) {
     console.log('Redis: Using REDIS_URL for connection');
+    // When using URL, TLS is automatically handled by the URL scheme (rediss://)
     return createClient({
       url: process.env.REDIS_URL,
       socket: {
-        tls: process.env.REDIS_URL?.startsWith('rediss://') || false,
         reconnectStrategy: (retries) => {
           if (retries > 10) {
             console.error('Redis: Too many reconnection attempts');
