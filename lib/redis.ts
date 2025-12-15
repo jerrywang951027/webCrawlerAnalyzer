@@ -30,22 +30,31 @@ function createRedisClient() {
         
         console.log(`Redis: Parsing rediss:// URL - host: ${host}, port: ${port}, password: ${password ? '***' : 'none'}`);
         
-        // For node-redis v5, use socket.tls as object with type assertion
+        // For node-redis v5, socket.tls should be boolean TRUE for TLS connections
+        // To handle self-signed certificates, we set NODE_TLS_REJECT_UNAUTHORIZED in the environment
+        // or accept that Heroku Redis uses valid certificates
+        const socketOptions: any = {
+          host: host,
+          port: port,
+          tls: true, // Boolean true enables TLS
+          reconnectStrategy: (retries: number) => {
+            if (retries > 10) {
+              console.error('Redis: Too many reconnection attempts');
+              return new Error('Too many reconnection attempts');
+            }
+            return Math.min(retries * 100, 3000);
+          },
+        };
+        
+        // Set rejectUnauthorized at process level for TLS connections
+        // This is necessary for Heroku Redis self-signed certificates
+        if (process.env.NODE_ENV === 'production') {
+          process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+          console.log('Redis: Disabled TLS certificate validation for production');
+        }
+        
         return createClient({
-          socket: {
-            host: host,
-            port: port,
-            tls: {
-              rejectUnauthorized: false, // Handle self-signed certificate chain issues
-            } as any, // Type assertion - socket.tls can be object despite types saying boolean
-            reconnectStrategy: (retries: number) => {
-              if (retries > 10) {
-                console.error('Redis: Too many reconnection attempts');
-                return new Error('Too many reconnection attempts');
-              }
-              return Math.min(retries * 100, 3000);
-            },
-          } as any,
+          socket: socketOptions,
           password: password || undefined,
         });
       } catch (error) {
