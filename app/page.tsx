@@ -309,7 +309,7 @@ export default function Home() {
   };
 
   const getSortedUrls = (): UrlEntry[] => {
-    if (!results || !sortConfig.key) {
+    if (!results || !sortConfig.key || !results.urls) {
       return results?.urls || [];
     }
 
@@ -657,12 +657,12 @@ export default function Home() {
               {isLoading && !results && (
                 <div className="text-blue-400">Starting crawl...</div>
               )}
-              {results?.status.map((status, index) => (
+              {results?.status && results.status.map((status, index) => (
                 <div key={index} className={darkMode ? 'text-gray-300 mb-1' : 'text-gray-700 mb-1'}>
                   {status}
                 </div>
               ))}
-              {results?.errors.length > 0 && (
+              {results?.errors && results.errors.length > 0 && (
                 <>
                   <div className="text-red-500 font-semibold mt-4 mb-2">Errors:</div>
                   {results.errors.map((error, index) => (
