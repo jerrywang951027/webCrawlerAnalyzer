@@ -8,7 +8,8 @@ function createRedisClient() {
     console.log('Redis: Using REDIS_URL for connection');
     const isTLS = process.env.REDIS_URL.startsWith('rediss://');
     
-    // When using URL with TLS (rediss://), configure socket to handle certificates
+    // When using URL, TLS is automatically handled by the URL scheme (rediss://)
+    // We configure TLS options at the top level, not in socket, to avoid conflicts
     const clientOptions: any = {
       url: process.env.REDIS_URL,
       socket: {
@@ -22,9 +23,10 @@ function createRedisClient() {
       },
     };
     
-    // Add TLS configuration for rediss:// URLs to handle certificate chain issues
+    // For rediss:// URLs, configure TLS at the top level to handle certificate chain issues
     if (isTLS) {
-      clientOptions.socket.tls = {
+      // Set TLS options at the top level, not in socket
+      clientOptions.tls = {
         // For Heroku Redis, disable certificate validation to handle self-signed cert chain issues
         rejectUnauthorized: false,
       };
