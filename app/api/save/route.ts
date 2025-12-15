@@ -45,6 +45,35 @@ export async function POST(request: NextRequest) {
     const client = await getRedisClient();
     console.log(`[SAVE] Redis client connected: ${client.isOpen ? 'Yes' : 'No'}`);
 
+    // Check Redis memory info before saving
+    try {
+      const info = await client.info('memory');
+      const maxMemoryMatch = info.match(/maxmemory:(\d+)/);
+      const usedMemoryMatch = info.match(/used_memory:(\d+)/);
+      const maxMemory = maxMemoryMatch ? parseInt(maxMemoryMatch[1]) : 0;
+      const usedMemory = usedMemoryMatch ? parseInt(usedMemoryMatch[1]) : 0;
+      const maxMemoryMB = maxMemory / (1024 * 1024);
+      const usedMemoryMB = usedMemory / (1024 * 1024);
+      const availableMemoryMB = maxMemoryMB - usedMemoryMB;
+      
+      console.log(`[SAVE] Redis memory - Max: ${maxMemoryMB.toFixed(2)} MB, Used: ${usedMemoryMB.toFixed(2)} MB, Available: ${availableMemoryMB.toFixed(2)} MB`);
+      
+      // Get all keys and their sizes
+      const allKeys = await client.keys('*');
+      console.log(`[SAVE] Existing keys in Redis: ${allKeys.length}`);
+      if (allKeys.length > 0) {
+        let totalKeysSize = 0;
+        for (const existingKey of allKeys) {
+          const size = await client.memoryUsage(existingKey).catch(() => 0);
+          totalKeysSize += size || 0;
+        }
+        const totalKeysSizeMB = totalKeysSize / (1024 * 1024);
+        console.log(`[SAVE] Total size of existing keys: ${totalKeysSizeMB.toFixed(2)} MB`);
+      }
+    } catch (error) {
+      console.warn(`[SAVE] Could not get Redis memory info:`, error);
+    }
+
     // Include sitemapUrl in the results before saving
     const resultsWithSitemapUrl = {
       ...results,
@@ -82,8 +111,63 @@ export async function POST(request: NextRequest) {
 
     // Store the results as JSON string
     console.log(`[SAVE] Saving data for key: ${key} (${dataSizeMB.toFixed(2)} MB)`);
-    await client.set(key, jsonString);
-    console.log(`[SAVE] Successfully saved key: ${key}`);
+    try {
+      await client.set(key, jsonString);
+      console.log(`[SAVE] Successfully saved key: ${key}`);
+    } catch (error: any) {
+      // Handle OOM (Out of Memory) errors specifically
+      if (error.message && error.message.includes('OOM') || error.message.includes('maxmemory')) {
+        console.error(`[SAVE] Redis OOM Error: ${error.message}`);
+        
+        // Try to get memory info for better error message
+        try {
+          const info = await client.info('memory');
+          const maxMemoryMatch = info.match(/maxmemory:(\d+)/);
+          const usedMemoryMatch = info.match(/used_memory:(\d+)/);
+          const maxMemory = maxMemoryMatch ? parseInt(maxMemoryMatch[1]) : 0;
+          const usedMemory = usedMemoryMatch ? parseInt(usedMemoryMatch[1]) : 0;
+          const maxMemoryMB = maxMemory / (1024 * 1024);
+          const usedMemoryMB = usedMemory / (1024 * 1024);
+          
+          const errorMsg = `Redis out of memory! Trying to save ${dataSizeMB.toFixed(2)} MB, but Redis is at ${usedMemoryMB.toFixed(2)} MB / ${maxMemoryMB.toFixed(2)} MB limit. Please delete old keys or upgrade your Redis plan.`;
+          
+          return NextResponse.json(
+            { 
+              error: errorMsg,
+              dataSize: {
+                bytes: dataSizeBytes,
+                kb: dataSizeKB,
+                mb: dataSizeMB,
+                limitMB: 25
+              },
+              redisMemory: {
+                maxMB: maxMemoryMB,
+                usedMB: usedMemoryMB,
+                availableMB: maxMemoryMB - usedMemoryMB
+              },
+              urlCount: results.urls?.length || 0
+            },
+            { status: 507 } // 507 Insufficient Storage
+          );
+        } catch (infoError) {
+          // Fallback error message
+          return NextResponse.json(
+            { 
+              error: `Redis out of memory! Cannot save ${dataSizeMB.toFixed(2)} MB. Please delete old keys or upgrade your Redis plan.`,
+              dataSize: {
+                bytes: dataSizeBytes,
+                kb: dataSizeKB,
+                mb: dataSizeMB,
+                limitMB: 25
+              },
+              urlCount: results.urls?.length || 0
+            },
+            { status: 507 } // 507 Insufficient Storage
+          );
+        }
+      }
+      throw error; // Re-throw if it's not an OOM error
+    }
 
     return NextResponse.json({ 
       success: true, 

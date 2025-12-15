@@ -150,12 +150,20 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
-        // Handle size limit error with detailed message
+        // Handle size limit error (413) with detailed message
         if (response.status === 413 && data.dataSize) {
           const sizeInfo = data.dataSize;
           const errorMsg = `${data.error}\n\nSize Details:\n- Current size: ${sizeInfo.mb.toFixed(2)} MB\n- Limit: ${sizeInfo.limitMB} MB\n- URLs: ${data.urlCount || 0}\n\nPlease reduce the number of URLs or split the data.`;
           alert(errorMsg);
-        } else {
+        } 
+        // Handle Redis OOM error (507) with memory information
+        else if (response.status === 507 && data.redisMemory) {
+          const sizeInfo = data.dataSize;
+          const memInfo = data.redisMemory;
+          const errorMsg = `${data.error}\n\nRedis Memory Status:\n- Max memory: ${memInfo.maxMB.toFixed(2)} MB\n- Used memory: ${memInfo.usedMB.toFixed(2)} MB\n- Available: ${memInfo.availableMB.toFixed(2)} MB\n\nTrying to save: ${sizeInfo.mb.toFixed(2)} MB\n\nPlease delete old saved results or upgrade your Redis plan.`;
+          alert(errorMsg);
+        }
+        else {
           throw new Error(data.error || 'Failed to save');
         }
         return;
