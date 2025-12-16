@@ -298,7 +298,17 @@ export default function Home() {
       // Refresh memory info
       await fetchRedisMemory();
       
-      alert(`Successfully deleted ${data.deletedCount || 0} saved record(s).`);
+      // Show detailed success message with memory info
+      let message = `Successfully deleted ${data.deletedCount || 0} saved record(s).`;
+      if (data.memoryFreedMB !== undefined) {
+        message += `\n\nMemory freed: ${data.memoryFreedMB.toFixed(2)} MB`;
+        message += `\nMemory before: ${data.memoryBeforeMB?.toFixed(2) || 'N/A'} MB`;
+        message += `\nMemory after: ${data.memoryAfterMB?.toFixed(2) || 'N/A'} MB`;
+        if (data.note) {
+          message += `\n\nNote: ${data.note}`;
+        }
+      }
+      alert(message);
     } catch (error: any) {
       alert(`Error clearing saved results: ${error.message}`);
     } finally {
