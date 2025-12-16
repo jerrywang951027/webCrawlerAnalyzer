@@ -109,6 +109,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if key already exists and delete it first to free memory
+    const keyExists = await client.exists(key);
+    if (keyExists) {
+      console.log(`[SAVE] Key ${key} already exists, deleting old value to free memory...`);
+      const oldKeySize = await client.memoryUsage(key).catch(() => 0);
+      const oldKeySizeMB = (oldKeySize || 0) / (1024 * 1024);
+      console.log(`[SAVE] Old key size: ${oldKeySizeMB.toFixed(2)} MB`);
+      await client.del(key);
+      console.log(`[SAVE] Deleted old key: ${key}`);
+    }
+
     // Store the results as JSON string
     console.log(`[SAVE] Saving data for key: ${key} (${dataSizeMB.toFixed(2)} MB)`);
     try {
