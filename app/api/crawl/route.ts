@@ -105,7 +105,8 @@ async function crawlHtmlLinks(
   errorLog: string[],
   delay: number = 500,
   maxDepth: number = 10,
-  currentDepth: number = 0
+  currentDepth: number = 0,
+  exclusionRules: string = ''
 ): Promise<void> {
   // Check depth limit
   if (currentDepth >= maxDepth) {
@@ -117,6 +118,12 @@ async function crawlHtmlLinks(
   const normalizedUrl = normalizeUrl(url);
   if (!normalizedUrl) {
     console.log(`[HTML CRAWL] Failed to normalize URL: ${url}`);
+    return;
+  }
+  
+  // Check exclusion rules
+  if (shouldExcludeUrl(normalizedUrl, exclusionRules)) {
+    console.log(`[HTML CRAWL] URL excluded by exclusion rules: ${normalizedUrl}`);
     return;
   }
   
@@ -178,9 +185,20 @@ async function crawlHtmlLinks(
     
     // Extract internal links
     const html = response.data;
-    const internalLinks = extractInternalLinks(html, normalizedUrl, baseDomain);
+    const allInternalLinks = extractInternalLinks(html, normalizedUrl, baseDomain);
     
-    console.log(`[HTML CRAWL] Found ${internalLinks.length} internal links on ${normalizedUrl}`);
+    // Filter out excluded links before processing
+    const internalLinks = allInternalLinks.filter(link => {
+      const normalized = normalizeUrl(link, normalizedUrl);
+      return normalized && !shouldExcludeUrl(normalized, exclusionRules);
+    });
+    
+    const excludedLinksCount = allInternalLinks.length - internalLinks.length;
+    if (excludedLinksCount > 0) {
+      console.log(`[HTML CRAWL] Excluded ${excludedLinksCount} internal links based on exclusion rules`);
+    }
+    
+    console.log(`[HTML CRAWL] Found ${internalLinks.length} internal links on ${normalizedUrl} (after exclusion)`);
     
     if (internalLinks.length > 0) {
       statusLog.push(`Found ${internalLinks.length} internal links on ${normalizedUrl}`);
@@ -204,7 +222,8 @@ async function crawlHtmlLinks(
           errorLog,
           delay,
           maxDepth,
-          currentDepth + 1
+          currentDepth + 1,
+          exclusionRules
         );
       }
     } else {
@@ -227,7 +246,8 @@ async function crawlSitemap(
   globalUrls: Map<string, UrlEntry>,
   statusLog: string[],
   errorLog: string[],
-  delay: number = 500
+  delay: number = 500,
+  exclusionRules: string = ''
 ): Promise<void> {
   try {
     // Add delay for politeness
@@ -301,7 +321,7 @@ async function crawlSitemap(
             ? `${sourcePath}=>${nestedFilename}`
             : nestedFilename;
 
-          await crawlSitemap(nestedUrl, newSourcePath, globalUrls, statusLog, errorLog, delay);
+          await crawlSitemap(nestedUrl, newSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules);
         }
       }
     }
@@ -332,10 +352,17 @@ async function crawlSitemap(
 
         // Extract URLs and add to global list
         let urlCount = 0;
+        let excludedCount = 0;
         for (const urlEntry of urls) {
           const url = extractUrl(urlEntry);
           
           if (url && typeof url === 'string') {
+            // Check exclusion rules first
+            if (shouldExcludeUrl(url, exclusionRules)) {
+              excludedCount++;
+              continue;
+            }
+            
             // Only add if URL doesn't exist (first encountered source path is retained)
             if (!globalUrls.has(url)) {
               // Ensure source is never empty
@@ -362,6 +389,11 @@ async function crawlSitemap(
           }
         }
         
+        if (excludedCount > 0) {
+          console.log(`[SITEMAP] Excluded ${excludedCount} URLs based on exclusion rules`);
+          statusLog.push(`Excluded ${excludedCount} URLs based on exclusion rules`);
+        }
+        
         console.log(`[SITEMAP] Extracted ${urlCount} URLs from ${urls.length} entries`);
         if (urlCount === 0 && urls.length > 0) {
           const warningMsg = `Warning: Found ${urls.length} URL entries but extracted 0 URLs. First entry structure: ${JSON.stringify(urls[0]).substring(0, 200)}`;
@@ -383,10 +415,35 @@ async function crawlSitemap(
   }
 }
 
+// Helper function to check if URL matches any exclusion rule
+function shouldExcludeUrl(url: string, exclusionRules: string): boolean {
+  if (!exclusionRules || !exclusionRules.trim()) {
+    return false;
+  }
+  
+  // Split by comma and process each regex pattern
+  const patterns = exclusionRules.split(',').map(p => p.trim()).filter(p => p.length > 0);
+  
+  for (const pattern of patterns) {
+    try {
+      const regex = new RegExp(pattern);
+      if (regex.test(url)) {
+        console.log(`[EXCLUSION] URL excluded by pattern "${pattern}": ${url}`);
+        return true;
+      }
+    } catch (error) {
+      // Invalid regex pattern - log but don't break
+      console.warn(`[EXCLUSION] Invalid regex pattern "${pattern}": ${error}`);
+    }
+  }
+  
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { sitemapUrl, delay = 500, crawlHtmlLinks: shouldCrawlHtmlLinks = false } = body;
+    const { sitemapUrl, delay = 500, crawlHtmlLinks: shouldCrawlHtmlLinks = false, exclusionRules = '' } = body;
 
     if (!sitemapUrl || typeof sitemapUrl !== 'string') {
       return NextResponse.json(
@@ -427,7 +484,7 @@ export async function POST(request: NextRequest) {
     console.log(`[SITEMAP CRAWL] Using source path: "${initialSourcePath}"`);
 
     // Start recursive crawl with entry filename as initial source path
-    await crawlSitemap(sitemapUrl, initialSourcePath, globalUrls, statusLog, errorLog, delay);
+    await crawlSitemap(sitemapUrl, initialSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules);
     
     console.log(`[SITEMAP CRAWL] Completed. Found ${globalUrls.size} URLs from sitemap`);
     
@@ -471,7 +528,8 @@ export async function POST(request: NextRequest) {
           errorLog,
           delay,
           10, // max depth
-          0   // start at depth 0
+          0,  // start at depth 0
+          exclusionRules
         );
         
         crawledCount++;
