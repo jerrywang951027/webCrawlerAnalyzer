@@ -49,7 +49,7 @@ export default function Home() {
   const [historyKeys, setHistoryKeys] = useState<string[]>([]);
   const [selectedHistoryKey, setSelectedHistoryKey] = useState('');
   const [crawlHtmlLinks, setCrawlHtmlLinks] = useState(false);
-  const [exclusionRules, setExclusionRules] = useState('');
+  const [exclusionRules, setExclusionRules] = useState('.*/archive/.*, .*/archives/.*');
   const [darkMode, setDarkMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'analyze' | 'load' | 'sitemaps'>('analyze');
   const [websiteUrl, setWebsiteUrl] = useState('');
