@@ -95,6 +95,31 @@ function extractInternalLinks(html: string, baseUrl: string, baseDomain: string)
   return [...new Set(links)];
 }
 
+// Helper function to check if URL matches any exclusion rule
+function shouldExcludeUrl(url: string, exclusionRules: string): boolean {
+  if (!exclusionRules || !exclusionRules.trim()) {
+    return false;
+  }
+  
+  // Split by comma and process each regex pattern
+  const patterns = exclusionRules.split(',').map(p => p.trim()).filter(p => p.length > 0);
+  
+  for (const pattern of patterns) {
+    try {
+      const regex = new RegExp(pattern);
+      if (regex.test(url)) {
+        console.log(`[EXCLUSION] URL excluded by pattern "${pattern}": ${url}`);
+        return true;
+      }
+    } catch (error) {
+      // Invalid regex pattern - log but don't break
+      console.warn(`[EXCLUSION] Invalid regex pattern "${pattern}": ${error}`);
+    }
+  }
+  
+  return false;
+}
+
 // Recursively crawl HTML pages for internal links
 async function crawlHtmlLinks(
   url: string,
@@ -413,31 +438,6 @@ async function crawlSitemap(
     statusLog.push(errorMessage);
     // Continue crawling other sitemaps even if one fails
   }
-}
-
-// Helper function to check if URL matches any exclusion rule
-function shouldExcludeUrl(url: string, exclusionRules: string): boolean {
-  if (!exclusionRules || !exclusionRules.trim()) {
-    return false;
-  }
-  
-  // Split by comma and process each regex pattern
-  const patterns = exclusionRules.split(',').map(p => p.trim()).filter(p => p.length > 0);
-  
-  for (const pattern of patterns) {
-    try {
-      const regex = new RegExp(pattern);
-      if (regex.test(url)) {
-        console.log(`[EXCLUSION] URL excluded by pattern "${pattern}": ${url}`);
-        return true;
-      }
-    } catch (error) {
-      // Invalid regex pattern - log but don't break
-      console.warn(`[EXCLUSION] Invalid regex pattern "${pattern}": ${error}`);
-    }
-  }
-  
-  return false;
 }
 
 export async function POST(request: NextRequest) {
