@@ -12,6 +12,14 @@ interface CrawlResult {
   status: string[];
   errors: string[];
   sitemapUrl?: string;
+  summary?: {
+    rawUrlCount: number;
+    excludedUrlCount: number;
+    finalUrlCount: number;
+    startTime: string;
+    endTime: string;
+    durationSeconds: number;
+  };
 }
 
 // Helper function to extract filename from URL
@@ -897,6 +905,69 @@ export default function Home() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Summary Display */}
+        {results && results.summary && (
+          <div className={`rounded-lg shadow-lg p-6 mb-6 ${
+            darkMode ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <h2 className={`text-2xl font-semibold mb-4 ${
+              darkMode ? 'text-white' : 'text-gray-800'
+            }`}>
+              Analysis Summary
+            </h2>
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${
+              darkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              <div className={`p-4 rounded-lg ${
+                darkMode ? 'bg-gray-700' : 'bg-gray-50'
+              }`}>
+                <div className="text-sm font-medium mb-1">Raw URLs</div>
+                <div className="text-2xl font-bold">
+                  {results.summary.rawUrlCount.toLocaleString()}
+                </div>
+              </div>
+              <div className={`p-4 rounded-lg ${
+                darkMode ? 'bg-gray-700' : 'bg-gray-50'
+              }`}>
+                <div className="text-sm font-medium mb-1">Excluded URLs</div>
+                <div className="text-2xl font-bold text-orange-500">
+                  {results.summary.excludedUrlCount.toLocaleString()}
+                </div>
+              </div>
+              <div className={`p-4 rounded-lg ${
+                darkMode ? 'bg-gray-700' : 'bg-gray-50'
+              }`}>
+                <div className="text-sm font-medium mb-1">Final URLs</div>
+                <div className="text-2xl font-bold text-green-500">
+                  {results.summary.finalUrlCount.toLocaleString()}
+                </div>
+              </div>
+            </div>
+            <div className={`mt-4 pt-4 border-t ${
+              darkMode ? 'border-gray-600' : 'border-gray-300'
+            }`}>
+              <div className={`text-sm ${
+                darkMode ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                <div className="mb-1">
+                  <span className="font-medium">Start Time:</span>{' '}
+                  {new Date(results.summary.startTime).toLocaleString()}
+                </div>
+                <div className="mb-1">
+                  <span className="font-medium">End Time:</span>{' '}
+                  {new Date(results.summary.endTime).toLocaleString()}
+                </div>
+                <div>
+                  <span className="font-medium">Duration:</span>{' '}
+                  {results.summary.durationSeconds < 60
+                    ? `${results.summary.durationSeconds} seconds`
+                    : `${Math.floor(results.summary.durationSeconds / 60)} minutes ${results.summary.durationSeconds % 60} seconds`}
+                </div>
+              </div>
             </div>
           </div>
         )}

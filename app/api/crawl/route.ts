@@ -13,6 +13,14 @@ interface CrawlResult {
   status: string[];
   errors: string[];
   sitemapUrl?: string;
+  summary?: {
+    rawUrlCount: number;
+    excludedUrlCount: number;
+    finalUrlCount: number;
+    startTime: string;
+    endTime: string;
+    durationSeconds: number;
+  };
 }
 
 // Helper function to extract filename from URL
@@ -131,7 +139,8 @@ async function crawlHtmlLinks(
   delay: number = 500,
   maxDepth: number = 10,
   currentDepth: number = 0,
-  exclusionRules: string = ''
+  exclusionRules: string = '',
+  excludedCountRef?: { count: number }
 ): Promise<void> {
   // Check depth limit
   if (currentDepth >= maxDepth) {
@@ -221,6 +230,9 @@ async function crawlHtmlLinks(
     const excludedLinksCount = allInternalLinks.length - internalLinks.length;
     if (excludedLinksCount > 0) {
       console.log(`[HTML CRAWL] Excluded ${excludedLinksCount} internal links based on exclusion rules`);
+      if (excludedCountRef) {
+        excludedCountRef.count += excludedLinksCount;
+      }
     }
     
     console.log(`[HTML CRAWL] Found ${internalLinks.length} internal links on ${normalizedUrl} (after exclusion)`);
@@ -248,7 +260,8 @@ async function crawlHtmlLinks(
           delay,
           maxDepth,
           currentDepth + 1,
-          exclusionRules
+          exclusionRules,
+          excludedCountRef
         );
       }
     } else {
@@ -272,7 +285,8 @@ async function crawlSitemap(
   statusLog: string[],
   errorLog: string[],
   delay: number = 500,
-  exclusionRules: string = ''
+  exclusionRules: string = '',
+  excludedCountRef?: { count: number }
 ): Promise<void> {
   try {
     // Add delay for politeness
@@ -346,7 +360,7 @@ async function crawlSitemap(
             ? `${sourcePath}=>${nestedFilename}`
             : nestedFilename;
 
-          await crawlSitemap(nestedUrl, newSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules);
+          await crawlSitemap(nestedUrl, newSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules, excludedCountRef);
         }
       }
     }
@@ -468,11 +482,17 @@ export async function POST(request: NextRequest) {
     const statusLog: string[] = [];
     const errorLog: string[] = [];
     const visitedUrls = new Set<string>();
+    
+    // Track statistics for summary
+    const startTime = new Date();
+    const excludedCountRef = { count: 0 };
+    let rawUrlCount = 0;
 
     const entryFilename = getFilename(sitemapUrl);
     console.log(`[SITEMAP CRAWL] Starting crawl from: ${entryFilename}`);
     console.log(`[SITEMAP CRAWL] Sitemap URL: ${sitemapUrl}`);
     console.log(`[SITEMAP CRAWL] Initial source path: ${entryFilename}`);
+    console.log(`[SITEMAP CRAWL] Start time: ${startTime.toISOString()}`);
     statusLog.push(`Starting crawl from: ${entryFilename}`);
     statusLog.push(`Initial source path will be: ${entryFilename}`);
 
@@ -484,7 +504,7 @@ export async function POST(request: NextRequest) {
     console.log(`[SITEMAP CRAWL] Using source path: "${initialSourcePath}"`);
 
     // Start recursive crawl with entry filename as initial source path
-    await crawlSitemap(sitemapUrl, initialSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules);
+    await crawlSitemap(sitemapUrl, initialSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules, excludedCountRef);
     
     console.log(`[SITEMAP CRAWL] Completed. Found ${globalUrls.size} URLs from sitemap`);
     
@@ -529,7 +549,8 @@ export async function POST(request: NextRequest) {
           delay,
           10, // max depth
           0,  // start at depth 0
-          exclusionRules
+          exclusionRules,
+          excludedCountRef
         );
         
         crawledCount++;
@@ -570,10 +591,28 @@ export async function POST(request: NextRequest) {
     // Convert Map to Array
     const urls = Array.from(globalUrls.values());
 
+    // Calculate final statistics
+    const endTime = new Date();
+    const durationSeconds = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+    
+    // Count raw URLs - need to track URLs before exclusion
+    // For now, we'll use final count + excluded count as raw count
+    // This is approximate since we don't track duplicates separately
+    const finalUrlCount = globalUrls.size;
+    const rawUrlCountEstimate = finalUrlCount + excludedCountRef.count;
+    
     console.log(`[CRAWL] ========================================`);
     console.log(`[CRAWL] Final Results:`);
     console.log(`[CRAWL] Total unique URLs: ${urls.length}`);
     console.log(`[CRAWL] Errors: ${errorLog.length}`);
+    console.log(`[CRAWL] ========================================`);
+    console.log(`[CRAWL] Summary:`);
+    console.log(`[CRAWL] - Raw URLs (estimated): ${rawUrlCountEstimate}`);
+    console.log(`[CRAWL] - Excluded URLs: ${excludedCountRef.count}`);
+    console.log(`[CRAWL] - Final URLs: ${finalUrlCount}`);
+    console.log(`[CRAWL] - Start time: ${startTime.toISOString()}`);
+    console.log(`[CRAWL] - End time: ${endTime.toISOString()}`);
+    console.log(`[CRAWL] - Duration: ${durationSeconds} seconds`);
     console.log(`[CRAWL] ========================================`);
 
     statusLog.push(`Crawl completed. Total unique URLs found: ${urls.length}`);
@@ -583,6 +622,14 @@ export async function POST(request: NextRequest) {
       status: statusLog,
       errors: errorLog,
       sitemapUrl: sitemapUrl,
+      summary: {
+        rawUrlCount: rawUrlCountEstimate,
+        excludedUrlCount: excludedCountRef.count,
+        finalUrlCount: finalUrlCount,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        durationSeconds: durationSeconds,
+      },
     };
 
     return NextResponse.json(result);
