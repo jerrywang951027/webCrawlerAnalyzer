@@ -140,7 +140,8 @@ async function crawlHtmlLinks(
   maxDepth: number = 10,
   currentDepth: number = 0,
   exclusionRules: string = '',
-  excludedCountRef?: { count: number }
+  excludedCountRef?: { count: number },
+  rawUrlCountRef?: { count: number }
 ): Promise<void> {
   // Check depth limit
   if (currentDepth >= maxDepth) {
@@ -221,6 +222,11 @@ async function crawlHtmlLinks(
     const html = response.data;
     const allInternalLinks = extractInternalLinks(html, normalizedUrl, baseDomain);
     
+    // Track ALL raw URLs encountered from HTML (before any filtering)
+    if (rawUrlCountRef) {
+      rawUrlCountRef.count += allInternalLinks.length;
+    }
+    
     // Filter out excluded links before processing
     const internalLinks = allInternalLinks.filter(link => {
       const normalized = normalizeUrl(link, normalizedUrl);
@@ -261,7 +267,8 @@ async function crawlHtmlLinks(
           maxDepth,
           currentDepth + 1,
           exclusionRules,
-          excludedCountRef
+          excludedCountRef,
+          rawUrlCountRef
         );
       }
     } else {
@@ -286,7 +293,8 @@ async function crawlSitemap(
   errorLog: string[],
   delay: number = 500,
   exclusionRules: string = '',
-  excludedCountRef?: { count: number }
+  excludedCountRef?: { count: number },
+  rawUrlCountRef?: { count: number }
 ): Promise<void> {
   try {
     // Add delay for politeness
@@ -360,7 +368,7 @@ async function crawlSitemap(
             ? `${sourcePath}=>${nestedFilename}`
             : nestedFilename;
 
-          await crawlSitemap(nestedUrl, newSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules, excludedCountRef);
+          await crawlSitemap(nestedUrl, newSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules, excludedCountRef, rawUrlCountRef);
         }
       }
     }
@@ -396,9 +404,17 @@ async function crawlSitemap(
           const url = extractUrl(urlEntry);
           
           if (url && typeof url === 'string') {
+            // Track ALL raw URLs encountered (before any filtering)
+            if (rawUrlCountRef) {
+              rawUrlCountRef.count++;
+            }
+            
             // Check exclusion rules first
             if (shouldExcludeUrl(url, exclusionRules)) {
               excludedCount++;
+              if (excludedCountRef) {
+                excludedCountRef.count++;
+              }
               continue;
             }
             
@@ -486,7 +502,7 @@ export async function POST(request: NextRequest) {
     // Track statistics for summary
     const startTime = new Date();
     const excludedCountRef = { count: 0 };
-    let rawUrlCount = 0;
+    const rawUrlCountRef = { count: 0 };
 
     const entryFilename = getFilename(sitemapUrl);
     console.log(`[SITEMAP CRAWL] Starting crawl from: ${entryFilename}`);
@@ -504,7 +520,7 @@ export async function POST(request: NextRequest) {
     console.log(`[SITEMAP CRAWL] Using source path: "${initialSourcePath}"`);
 
     // Start recursive crawl with entry filename as initial source path
-    await crawlSitemap(sitemapUrl, initialSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules, excludedCountRef);
+    await crawlSitemap(sitemapUrl, initialSourcePath, globalUrls, statusLog, errorLog, delay, exclusionRules, excludedCountRef, rawUrlCountRef);
     
     console.log(`[SITEMAP CRAWL] Completed. Found ${globalUrls.size} URLs from sitemap`);
     
@@ -550,7 +566,8 @@ export async function POST(request: NextRequest) {
           10, // max depth
           0,  // start at depth 0
           exclusionRules,
-          excludedCountRef
+          excludedCountRef,
+          rawUrlCountRef
         );
         
         crawledCount++;
@@ -595,11 +612,11 @@ export async function POST(request: NextRequest) {
     const endTime = new Date();
     const durationSeconds = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
     
-    // Count raw URLs - need to track URLs before exclusion
-    // For now, we'll use final count + excluded count as raw count
-    // This is approximate since we don't track duplicates separately
+    // Final URL count (unique URLs after filtering)
     const finalUrlCount = globalUrls.size;
-    const rawUrlCountEstimate = finalUrlCount + excludedCountRef.count;
+    
+    // Raw URL count is now accurately tracked - all URLs encountered before any filtering
+    const rawUrlCount = rawUrlCountRef.count;
     
     console.log(`[CRAWL] ========================================`);
     console.log(`[CRAWL] Final Results:`);
@@ -607,7 +624,7 @@ export async function POST(request: NextRequest) {
     console.log(`[CRAWL] Errors: ${errorLog.length}`);
     console.log(`[CRAWL] ========================================`);
     console.log(`[CRAWL] Summary:`);
-    console.log(`[CRAWL] - Raw URLs (estimated): ${rawUrlCountEstimate}`);
+    console.log(`[CRAWL] - Raw URLs: ${rawUrlCount}`);
     console.log(`[CRAWL] - Excluded URLs: ${excludedCountRef.count}`);
     console.log(`[CRAWL] - Final URLs: ${finalUrlCount}`);
     console.log(`[CRAWL] - Start time: ${startTime.toISOString()}`);
@@ -623,7 +640,7 @@ export async function POST(request: NextRequest) {
       errors: errorLog,
       sitemapUrl: sitemapUrl,
       summary: {
-        rawUrlCount: rawUrlCountEstimate,
+        rawUrlCount: rawUrlCount,
         excludedUrlCount: excludedCountRef.count,
         finalUrlCount: finalUrlCount,
         startTime: startTime.toISOString(),
