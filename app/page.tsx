@@ -56,6 +56,7 @@ export default function Home() {
   const [isLoadingSitemaps, setIsLoadingSitemaps] = useState(false);
   const [foundSitemaps, setFoundSitemaps] = useState<string[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [savedResultsSummary, setSavedResultsSummary] = useState<Array<{
     name: string;
     sitemapUrl: string;
@@ -262,6 +263,46 @@ export default function Home() {
       alert(`Error loading: ${error.message}`);
     } finally {
       setIsLoadingHistory(false);
+    }
+  };
+
+  const handleClearAll = async () => {
+    // Confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ALL saved results?\n\nThis will permanently delete ${historyKeys.length} saved record(s) from Redis.\n\nThis action cannot be undone!`
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+    
+    setIsClearing(true);
+    try {
+      const response = await fetch('/api/clear', {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to clear saved results');
+      }
+
+      const data = await response.json();
+      
+      // Clear local state
+      setHistoryKeys([]);
+      setSelectedHistoryKey('');
+      setResults(null);
+      setSavedResultsSummary([]);
+      
+      // Refresh memory info
+      await fetchRedisMemory();
+      
+      alert(`Successfully deleted ${data.deletedCount || 0} saved record(s).`);
+    } catch (error: any) {
+      alert(`Error clearing saved results: ${error.message}`);
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -732,6 +773,23 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
+                
+                {/* Clear All Button */}
+                {historyKeys.length > 0 && (
+                  <div className="mb-4">
+                    <button
+                      onClick={handleClearAll}
+                      disabled={isClearing}
+                      className={`w-full px-6 py-2 rounded-lg font-semibold transition-colors ${
+                        isClearing
+                          ? 'bg-gray-400 text-white cursor-not-allowed'
+                          : 'bg-red-600 text-white hover:bg-red-700'
+                      }`}
+                    >
+                      {isClearing ? 'Clearing...' : `Clear All Saved Results (${historyKeys.length} record(s))`}
+                    </button>
+                  </div>
+                )}
                 
                 {/* Display loaded sitemap URL */}
                 {results && results.sitemapUrl && (
